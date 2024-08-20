@@ -1,3 +1,4 @@
+// Initialize the SurveyJS model
 const survey = new Survey.Model(json);
 
 // Show or hide the "Validate" button based on the dropdown selection
@@ -39,26 +40,53 @@ function validateSelection() {
     console.log(`Selected Value: ${selectedValue}`);
 
     if (selectedValue) {
-        console.log('Emitting validation request');
-        socket.emit('validate', { value: selectedValue });
+        console.log('Sending validation request');
 
-        // Listen for the validation result
-        socket.once('validationResult', (response) => {
-            console.log('Validation result received:', response);
-            if (response.success) {
-                // Show success message
-                const successContainer = document.getElementById('successContainer');
-                if (successContainer) {
-                    successContainer.style.display = 'block';
+        // Webhook API call with the validation link
+        const webhookUrl = 'https://automation.quickwork.co/staticwebhook/api/http_app/notify/646f45a7262b940cb8de7543/channel_partner_validator';
+        const apiBody = {
+            channelCode: selectedValue,
+            link: "http://127.0.0.1:5500/socket-server/validate.html" // Local validation link
+        };
+
+        fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(apiBody)
+        })
+        .then(response => response.text())
+        .then(text => {
+            console.log('Webhook response text:', text);
+
+            // Show loader and wait for WebSocket response
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            // Listen for the validation result from WebSocket
+            socket.once('validationResult', (data) => {
+                loader.style.display = 'none'; // Hide loader
+
+                if (data.success) {
+                    // Show success message
+                    const successContainer = document.getElementById('successContainer');
+                    if (successContainer) {
+                        successContainer.style.display = 'block';
+                    }
+
+                    // Hide the "Validate" button
+                    const validateButton = document.getElementById('validateBtn');
+                    if (validateButton) {
+                        validateButton.style.display = 'none';
+                    }
+                } else {
+                    alert('Validation failed!');
                 }
-                // Hide the "Validate" button
-                const validateButton = document.getElementById('validateBtn');
-                if (validateButton) {
-                    validateButton.style.display = 'none';
-                }
-            } else {
-                alert('Validation failed!');
-            }
+            });
+        })
+        .catch(error => {
+            console.error('Error in webhook call:', error);
         });
     } else {
         alert('Please select a value before validating.');
